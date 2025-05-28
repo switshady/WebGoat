@@ -1,4 +1,4 @@
-name: Full Security Scan - SCA + SAST + DAST
+name: Full Security Scan - WebGoat (Source Build)
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
 
 jobs:
 
-  # 🧩 SCA - Software Composition Analysis
-  dependency-check:
+  # 🧩 SCA - OWASP Dependency-Check
+  sca:
     name: OWASP Dependency-Check (SCA)
     runs-on: ubuntu-latest
     steps:
@@ -26,8 +26,8 @@ jobs:
           project: "WebGoat"
           path: "."
 
-  # 🔎 SAST - Static Application Security Testing
-  semgrep:
+  # 🔎 SAST - Semgrep Static Analysis
+  sast:
     name: Semgrep (SAST)
     runs-on: ubuntu-latest
     steps:
@@ -38,22 +38,30 @@ jobs:
         with:
           config: "p/owasp-top-ten"
 
-  # 🌐 DAST - Dynamic Application Security Testing
-  zap_scan:
+  # 🌐 DAST - OWASP ZAP against local WebGoat instance
+  dast:
     name: OWASP ZAP (DAST)
     runs-on: ubuntu-latest
-    services:
-      webgoat:
-        image: webgoat/webgoat
-        ports:
-          - 8080:8080
 
     steps:
-      - name: Wait for WebGoat to be Ready
+      - uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+
+      - name: Build WebGoat
+        run: ./mvnw clean install -DskipTests
+
+      - name: Start WebGoat in background
+        run: java -jar webgoat-server/target/webgoat-server-*.jar &
+      
+      - name: Wait for WebGoat to Start
         run: |
           for i in {1..30}; do
-            nc -z localhost 8080 && break
-            echo "Waiting for WebGoat to start..."
+            curl -s http://localhost:8080/WebGoat | grep -q "WebGoat" && break
+            echo "Waiting for WebGoat to be available..."
             sleep 5
           done
 
